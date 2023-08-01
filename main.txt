@@ -1,0 +1,163 @@
+# import sys
+import numpy as np
+import random
+import pygame as pg
+import sys
+from pygame.locals import *
+
+pg.init()
+game_on = True
+fps = 60
+fpsClock = pg.time.Clock()
+Black = (255, 255, 255)
+rocks = []
+energy_balls = []
+width, height = 700, 700
+timer_rock = 1000
+last_time_rock = pg.time.get_ticks()
+timer_energy = 5000
+last_time_energy = pg.time.get_ticks()
+screen = pg.display.set_mode((width, height))
+pg.display.set_caption("stars")
+# Images
+ROCK_IMG = pg.image.load("meteorite.png").convert_alpha()
+SPACESHIP_IMG = pg.image.load("spaceship.png").convert_alpha()
+ENERGY_IMG = pg.image.load("energy.png").convert_alpha()
+
+
+def radius_angle_to_xy(radius, angle):
+    x = (np.cos(np.deg2rad(angle)) * radius) + (width / 2)
+    y = (np.sin(np.deg2rad(angle)) * radius) + (height / 2)
+    return x, y
+
+
+class Rock:
+    def __init__(self):
+        self.x = None
+        self.y = None
+        self.img = ROCK_IMG
+        self.img_mask = pg.mask.from_surface(self.img)
+        self.img_rect = self.img.get_rect()
+        self.angle = random.randrange(0, 360)
+        self.radius = 0.00
+        self.speed_factor = 1.01
+        self.speed = 0.5
+
+    def move(self):
+        self.radius += self.speed
+        if self.radius > width:
+            return True
+        self.x, self.y = radius_angle_to_xy(self.radius, self.angle)
+        self.speed = self.speed * self.speed_factor
+        return False
+
+    def draw(self):
+        width_scaled = (self.radius * 100 / (width / 2)) * (self.img.get_width() / 100)
+        height_scaled = (self.radius * 100 / (height / 2)) * (self.img.get_height() / 100)
+        self.img_scaled = pg.transform.scale(self.img, (width_scaled, height_scaled))
+        screen.blit(self.img_scaled, (self.x - (width_scaled / 2), self.y - (height_scaled / 2)))
+        pg.draw.rect(screen, (255, 0, 0), (
+        self.x - (self.img.get_width() / 2), self.y - (self.img.get_height() / 2), self.img.get_width(),
+        self.img.get_height()), 2)
+
+
+class Energy(Rock):
+    def __init__(self):
+        super().__init__()
+        self.speed = 0.5
+        self.img = ENERGY_IMG
+
+
+class Spaceship:
+    def __init__(self):
+        self.x = None
+        self.y = None
+        self.img = pg.transform.scale(SPACESHIP_IMG, (width / 8, height / 8))
+        self.img_mask = pg.mask.from_surface(self.img)
+        self.img_rect = self.img.get_rect()
+        self.radius = width * 4 / 10
+        self.angle = 90
+        self.speed_factor = 1.01
+        self.speed = 0
+
+    def move(self):
+        self.angle += self.speed
+        self.x, self.y = radius_angle_to_xy(self.radius, self.angle)
+
+    def draw(self):
+        self.img_rotated = pg.transform.rotate(self.img, -(self.angle - 90))
+        screen.blit(self.img_rotated, (self.x - (self.img.get_width() / 2), self.y - (self.img.get_height() / 2)))
+        pg.draw.rect(screen, (255,0,0), (self.x - (self.img.get_width() / 2), self.y - (self.img.get_height() / 2), self.img.get_width(),self.img.get_height()),2)
+    def brake(self):
+        self.speed += 0.1 if self.speed < -0.05 else -0.1 if self.speed > 0.05 else 0
+
+
+class Fuel:
+    def __init__(self):
+        self.how_full = 100
+
+
+spaceship = Spaceship()
+
+
+def spawn_rock():
+    rocks.append(Rock())
+
+
+def spawn_energy():
+    energy_balls.append(Energy())
+
+
+# energy = Energy()
+
+
+# game loop
+while game_on:
+    for event in pg.event.get():
+        if event.type == QUIT:
+            game_on = False
+    keys = pg.key.get_pressed()
+
+    if keys[pg.K_RIGHT] and spaceship.speed > -4:
+        spaceship.speed -= 0.2
+    elif keys[pg.K_LEFT] and spaceship.speed < 4:
+        spaceship.speed += 0.2
+    else:
+        spaceship.brake()
+
+    # Update
+    # Spawn rock
+    if pg.time.get_ticks() > last_time_rock + timer_rock:
+        last_time_rock = pg.time.get_ticks()
+        timer_rock = random.triangular(100, 4000, max(400, 3000 - (last_time_rock / 10)))
+        spawn_rock()
+    # Spawn energy
+    if pg.time.get_ticks() > last_time_energy + timer_energy:
+        last_time_energy = pg.time.get_ticks()
+        timer_energy = random.randrange(5000, 10000)
+        spawn_energy()
+
+    for rock in rocks:
+
+        if rock.move():
+            rocks.pop(rocks.index(rock))
+        if rock.img_mask.overlap(spaceship.img_mask, (spaceship.x - rock.x - spaceship.img_rect.center[0], spaceship.y - rock.y - spaceship.img_rect.center[1])):
+            print(pg.time.get_ticks())
+    for energy in energy_balls:
+        if energy.move():
+            energy_balls.pop(energy_balls.index(energy))
+
+    spaceship.move()
+    screen.fill(Black)
+    # Draw
+    for rock in rocks:
+        rock.draw()
+
+    for energy in energy_balls:
+        energy.draw()
+
+    spaceship.draw()
+    pg.display.flip()
+    fpsClock.tick(fps)
+pg.quit()
+sys.exit()
